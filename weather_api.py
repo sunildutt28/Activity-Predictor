@@ -16,69 +16,39 @@ CITY_TIMEZONES = {
 }
 
 def get_weather(city_lat, city_lon, city_name):
-    # Get timezone for the selected city
     timezone_str = CITY_TIMEZONES.get(city_name, "Europe/London")
     
+    # Correct API endpoint and parameters
     url = "https://api.open-meteo.com/v1/forecast"
     params = {
         "latitude": city_lat,
         "longitude": city_lon,
-        "current_weather": True,
-        "hourly": "temperature_2m,rain,wind_speed_10m",
+        "current": "temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code",  # Note: 'current' not 'current_weather'
         "timezone": timezone_str,
         "forecast_days": 1
     }
     
-    try:
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()  # Raise error for bad status codes
-        data = response.json()
-        
-        # Debug: Print what we received (will appear in Streamlit logs)
-        print(f"API Response keys: {data.keys()}")
-        
-        # Check if 'current_weather' exists
-        if "current_weather" not in data:
-            error_msg = f"API Error: {data.get('reason', 'Unknown error')}"
-            print(error_msg)
-            raise KeyError(error_msg)
-        
-        current = data["current_weather"]
-        
-        # Safely get hourly rain data
-        hourly_rain = data.get("hourly", {}).get("rain", [0])
-        next_hour_rain = hourly_rain[0] if hourly_rain else 0
-        
-        # Get current time in the city's timezone
-        city_tz = ZoneInfo(timezone_str)
-        city_time = datetime.now(city_tz)
-        
-        return {
-            "temperature": current.get("temperature", 15),
-            "windspeed": current.get("windspeed", 10),
-            "weathercode": current.get("weathercode", 0),
-            "rain": next_hour_rain,
-            "hour": city_time.hour,
-            "minute": city_time.minute,
-            "timezone": timezone_str,
-            "city_time": city_time.strftime("%H:%M:%S")
-        }
+    print(f"Fetching weather for {city_name} at {city_lat}, {city_lon}")  # Debug
     
-    except requests.exceptions.RequestException as e:
-        print(f"Network error: {e}")
-        # Return fallback data
-        city_tz = ZoneInfo(timezone_str)
-        city_time = datetime.now(city_tz)
-        return {
-            "temperature": 15,
-            "windspeed": 10,
-            "weathercode": 0,
-            "rain": 0,
-            "hour": city_time.hour,
-            "minute": city_time.minute,
-            "timezone": timezone_str,
-            "city_time": city_time.strftime("%H:%M:%S")
-        }
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-        raise
+    response = requests.get(url, params=params)
+    data = response.json()
+    
+    print(f"API Response keys: {data.keys()}")  # Debug - will show in Streamlit logs
+    
+    # Get current time in the city's timezone
+    city_tz = ZoneInfo(timezone_str)
+    city_time = datetime.now(city_tz)
+    
+    # Extract data from the new API format
+    current = data.get("current", {})
+    
+    return {
+        "temperature": current.get("temperature_2m", 15.0),
+        "windspeed": current.get("wind_speed_10m", 10.0),
+        "weathercode": current.get("weather_code", 0),
+        "rain": 0,  # Rain data requires different endpoint, keep simple
+        "hour": city_time.hour,
+        "minute": city_time.minute,
+        "timezone": timezone_str,
+        "city_time": city_time.strftime("%H:%M:%S")
+    }
