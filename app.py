@@ -17,51 +17,46 @@ with col1:
 
 with col2:
     st.subheader("⏰ Time")
-    # Option to use current time or manual
-    use_current = st.checkbox("Use current time")
+    
+    # Option to use current time with timezone fix
+    use_current = st.checkbox("Use current time (your local time)")
+    
     if use_current:
-        current_hour = datetime.now().hour
-        st.info(f"Using current time: {current_hour}:00")
-        hour = float(current_hour)
+        # Get current UTC time
+        utc_now = datetime.utcnow()
+        utc_hour = utc_now.hour
+        
+        # MANUALLY SET YOUR TIMEZONE OFFSET HERE
+        # For Ireland/UK (March-October): +1
+        # For Ireland/UK (November-February): +0
+        # For US Eastern: -5 or -4
+        # For India: +5.5
+        
+        YOUR_OFFSET = 1  # ← CHANGE THIS TO YOUR TIMEZONE OFFSET
+        
+        local_hour = (utc_hour + YOUR_OFFSET) % 24
+        
+        st.info(f"🕐 UTC time: {utc_hour}:00 → Your local time: {local_hour}:00")
+        hour = float(local_hour)
     else:
         hour = st.slider("Hour of Day", 0, 23, 12)
-
-# Add a debug expander
-with st.expander("🔧 Debug Info (for troubleshooting)"):
-    st.write("Input values being sent to model:")
-    st.json({
-        "temperature": float(temperature),
-        "rain": float(rain),
-        "windspeed": float(wind_speed),
-        "hour": float(hour)
-    })
 
 # Get recommendation button
 if st.button("🎯 Get Activity Suggestion", type="primary", use_container_width=True):
     with st.spinner("🤖 Consulting ML model..."):
-        # Prepare weather data (ensure correct key names)
         weather_data = {
             "temperature": temperature,
             "rain": rain,
-            "windspeed": wind_speed,  # Note: 'windspeed' not 'wind'
+            "windspeed": wind_speed,
             "hour": hour
         }
         
-        # Get recommendation
+        # Show debug info (remove after testing)
+        st.caption(f"🔍 Model input: Hour={hour:.0f}, Temp={temperature}°C, Rain={rain}mm")
+        
         activity, confidence, reason, prediction = recommend_activity_ml(weather_data)
         
-        # Display results
         st.success(f"### {activity}")
         st.info(f"📝 **Why?** {reason}")
-        
-        # Show confidence as progress bar
         st.progress(confidence)
-        st.caption(f"ML Model Confidence: {confidence:.1%}")
-        
-        # Show prediction label for transparency
-        label_map = {0: "Outdoor Day", 1: "Indoor Day", 2: "Night Activity"}
-        st.caption(f"🤖 Model classification: {label_map[prediction]}")
-
-# Add footer with ML info
-st.divider()
-st.caption("Powered by Random Forest Classifier | Trained on weather and time data")
+        st.caption(f"🤖 ML Confidence: {confidence:.1%}")
