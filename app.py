@@ -25,9 +25,9 @@ with st.expander("🔬 Model Diagnostic Tool", expanded=False):
     
     with col_diag1:
         st.markdown("**📁 Model File Status**")
-        if os.path.exists("weather_model.pkl"):
-            model_size = os.path.getsize("weather_model.pkl")
-            model_time = os.path.getmtime("weather_model.pkl")
+        if os.path.exists("weather_model_V2.pkl"):
+            model_size = os.path.getsize("weather_model_V2.pkl")
+            model_time = os.path.getmtime("weather_model_V2.pkl")
             from datetime import datetime as dt
             model_date = dt.fromtimestamp(model_time).strftime("%Y-%m-%d %H:%M:%S")
             st.success(f"✅ Model file found")
@@ -39,7 +39,7 @@ with st.expander("🔬 Model Diagnostic Tool", expanded=False):
     with col_diag2:
         st.markdown("**🤖 Model Loading Test**")
         try:
-            test_model = joblib.load("weather_model.pkl")
+            test_model = joblib.load("weather_model_V2.pkl")
             st.success("✅ Model loaded successfully")
             st.write(f"- Type: {type(test_model).__name__}")
         except Exception as e:
@@ -58,8 +58,8 @@ with st.expander("🔬 Model Diagnostic Tool", expanded=False):
         st.markdown("**Results:**")
         
         # Load model
-        if os.path.exists("weather_model.pkl"):
-            model = joblib.load("weather_model.pkl")
+        if os.path.exists("weather_model_V2.pkl"):
+            model = joblib.load("weather_model_V2.pkl")
             
             results = []
             for hour in test_hours:
@@ -122,8 +122,8 @@ with st.sidebar:
     """)
     
     # Quick model status
-    if os.path.exists("weather_model.pkl"):
-        model_size = os.path.getsize("weather_model.pkl")
+    if os.path.exists("weather_model_V2.pkl"):
+        model_size = os.path.getsize("weather_model_V2.pkl")
         st.success(f"✅ ML Model loaded\nSize: {model_size} bytes")
     else:
         st.error("❌ Model file not found")
