@@ -1,77 +1,67 @@
 import streamlit as st
-from weather_api import get_weather, CITY_TIMEZONES  # Import both
 from recommender_ml import recommend_activity_ml
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
-# City coordinates
-cities = {
-    "Dublin": (53.3498, -6.2603),
-    "London": (51.5074, -0.1278),
-    "New York": (40.7128, -74.0060),
-    "Tokyo": (35.6895, 139.6917),
-    "Paris": (48.8566, 2.3522),
-    "Berlin": (52.5200, 13.4050),
-    "Sydney": (-33.8688, 151.2093),
-    "Los Angeles": (34.0522, -118.2437),
-    "Singapore": (1.3521, 103.8198),
-    "Mumbai": (19.0760, 72.8777),
-}
+st.set_page_config(page_title="Activity Suggester", page_icon="🎯")
+st.title("🎯 Smart Activity Suggester")
+st.markdown("Using Machine Learning to recommend activities based on weather and time")
 
-st.set_page_config(page_title="ML Weather Activity Suggester", layout="wide")
+# Create two columns for inputs
+col1, col2 = st.columns(2)
 
-st.title(" ML-Powered Weather Activity Suggester")
-st.markdown("*Automatically detects local time for any city*")
+with col1:
+    st.subheader("🌡️ Weather Conditions")
+    temperature = st.slider("Temperature (°C)", -10, 45, 18)
+    rain = st.slider("Rain (mm)", 0.0, 50.0, 0.0, step=0.5)
+    wind_speed = st.slider("Wind Speed (km/h)", 0, 80, 10)
 
-# Sidebar - City selection
-city = st.sidebar.selectbox("📍 Select your city", list(cities.keys()))
+with col2:
+    st.subheader("⏰ Time")
+    # Option to use current time or manual
+    use_current = st.checkbox("Use current time")
+    if use_current:
+        current_hour = datetime.now().hour
+        st.info(f"Using current time: {current_hour}:00")
+        hour = float(current_hour)
+    else:
+        hour = st.slider("Hour of Day", 0, 23, 12)
 
-# Show current time for selected city (dynamic preview)
-if city in CITY_TIMEZONES:
-    city_tz = ZoneInfo(CITY_TIMEZONES[city])
-    preview_time = datetime.now(city_tz)
-    st.sidebar.info(f"🕐 Local time in {city}: {preview_time.strftime('%H:%M:%S')}")
+# Add a debug expander
+with st.expander("🔧 Debug Info (for troubleshooting)"):
+    st.write("Input values being sent to model:")
+    st.json({
+        "temperature": float(temperature),
+        "rain": float(rain),
+        "windspeed": float(wind_speed),
+        "hour": float(hour)
+    })
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("### 🧠 How it works")
-st.sidebar.markdown("""
-- Model uses: **Temperature + Rain + Wind + Local Hour**
-- Automatically detects timezone for each city
-- Trained on weather patterns + time of day
-""")
-
-# Main content
-if st.button("🌤️ Get Live Recommendation", type="primary", use_container_width=True):
-    with st.spinner(f"Fetching live weather data for {city}..."):
-        lat, lon = cities[city]
-        weather = get_weather(lat, lon, city)
+# Get recommendation button
+if st.button("🎯 Get Activity Suggestion", type="primary", use_container_width=True):
+    with st.spinner("🤖 Consulting ML model..."):
+        # Prepare weather data (ensure correct key names)
+        weather_data = {
+            "temperature": temperature,
+            "rain": rain,
+            "windspeed": wind_speed,  # Note: 'windspeed' not 'wind'
+            "hour": hour
+        }
         
-        # Display weather metrics
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("🌡️ Temperature", f"{weather['temperature']}°C")
-        col2.metric("💨 Wind Speed", f"{weather['windspeed']} km/h")
-        col3.metric("🌧️ Rain (next hour)", f"{weather['rain']} mm")
-        col4.metric("🕐 Local Time", weather['city_time'])
+        # Get recommendation
+        activity, confidence, reason, prediction = recommend_activity_ml(weather_data)
         
-        # Display timezone info
-        st.caption(f"📍 Timezone: {weather['timezone']} | Local hour: {weather['hour']}:00")
-        
-        # ML Recommendation
-        activity, confidence, reason, prediction = recommend_activity_ml(weather)
-        
-        st.markdown("---")
-        st.subheader("🎯 ML Model Recommendation")
+        # Display results
         st.success(f"### {activity}")
-        st.progress(confidence)
-        st.caption(f"Model confidence: {confidence*100:.1f}%")
-        st.info(f"📝 {reason}")
+        st.info(f"📝 **Why?** {reason}")
         
-        # Show what the model learned
-        with st.expander("🔬 Why this recommendation?"):
-            st.write(f"**Time in {city}:** {weather['hour']}:00")
-            st.write(f"**Weather:** {weather['temperature']}°C, {weather['rain']}mm rain, {weather['windspeed']}km/h wind")
-            st.write(f"**Model prediction:** {'Outdoor' if prediction == 0 else 'Indoor' if prediction == 1 else 'Night'} activity")
-            st.write("**Model learned that hour of day is a key factor for recommendations**")
+        # Show confidence as progress bar
+        st.progress(confidence)
+        st.caption(f"ML Model Confidence: {confidence:.1%}")
+        
+        # Show prediction label for transparency
+        label_map = {0: "Outdoor Day", 1: "Indoor Day", 2: "Night Activity"}
+        st.caption(f"🤖 Model classification: {label_map[prediction]}")
 
-st.markdown("---")
-st.caption("⚡ Pure ML | Features: Temp + Rain + Wind + Local Hour | Timezone-aware for any city")
+# Add footer with ML info
+st.divider()
+st.caption("Powered by Random Forest Classifier | Trained on weather and time data")
