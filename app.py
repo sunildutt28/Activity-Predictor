@@ -20,7 +20,7 @@ cities = {
 
 st.set_page_config(page_title="ML Weather Activity Suggester", layout="wide")
 
-st.title("🤖 ML-Powered Weather Activity Suggester")
+st.title(" ML-Powered Weather Activity Suggester")
 st.markdown("*Automatically detects local time for any city*")
 
 # Sidebar - City selection
