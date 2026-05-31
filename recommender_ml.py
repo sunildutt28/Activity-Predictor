@@ -1,98 +1,234 @@
-# recommender_ml.py - COMPLETE VERSION FOR STREAMLIT CLOUD
+# recommender_ml.py - Complete training with all value combinations
 import joblib
 import os
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
+import pandas as pd
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.preprocessing import StandardScaler
 import warnings
 warnings.filterwarnings('ignore')
 
+def generate_comprehensive_training_data():
+    """Generate comprehensive training data with all value combinations"""
+    print("🔄 Generating comprehensive training data...")
+    
+    X = []
+    y = []
+    
+    # Define all possible values for each feature
+    temperatures = [0, 5, 10, 12, 15, 18, 20, 22, 25, 28, 30, 35]
+    rain_values = [0, 1, 2, 5, 8, 10, 15, 20, 30, 50]
+    wind_values = [0, 5, 10, 15, 20, 25, 30, 40, 50]
+    day_hours = list(range(8, 20))  # 8-19
+    night_hours = [20, 21, 22, 23, 0, 1, 2, 3, 4, 5]
+    
+    # ===== DAYTIME - OUTDOOR (0) =====
+    # Good weather conditions: low rain, low wind, comfortable temp
+    print("  Adding Outdoor samples...")
+    for hour in day_hours:
+        for temp in [15, 18, 20, 22, 25]:
+            for rain in [0, 1, 2]:
+                for wind in [0, 5, 10]:
+                    X.append([temp, rain, wind, hour])
+                    y.append(0)
+        
+        # Also add moderate temperatures
+        for temp in [12, 14, 16, 17]:
+            for rain in [0, 1]:
+                for wind in [5, 10]:
+                    X.append([temp, rain, wind, hour])
+                    y.append(0)
+    
+    # ===== DAYTIME - INDOOR (1) =====
+    # Bad weather: high rain, high wind, or very cold
+    print("  Adding Indoor samples...")
+    for hour in day_hours:
+        # Heavy rain scenarios
+        for rain in [10, 15, 20, 30, 50]:
+            for temp in [10, 15, 20]:
+                for wind in [10, 15, 20]:
+                    X.append([temp, rain, wind, hour])
+                    y.append(1)
+        
+        # Moderate rain
+        for rain in [5, 8]:
+            for temp in [10, 15]:
+                for wind in [15, 20]:
+                    X.append([temp, rain, wind, hour])
+                    y.append(1)
+        
+        # High wind scenarios
+        for wind in [25, 30, 40, 50]:
+            for temp in [15, 18, 20]:
+                for rain in [0, 2, 5]:
+                    X.append([temp, rain, wind, hour])
+                    y.append(1)
+        
+        # Cold weather scenarios
+        for temp in [0, 2, 4, 6, 8]:
+            for rain in [0, 2, 5]:
+                for wind in [5, 10, 15]:
+                    X.append([temp, rain, wind, hour])
+                    y.append(1)
+        
+        # Light rain but cold or windy
+        for rain in [3, 4, 6]:
+            for temp in [8, 10, 12]:
+                for wind in [15, 20]:
+                    X.append([temp, rain, wind, hour])
+                    y.append(1)
+    
+    # ===== NIGHT (2) =====
+    # All night hours are night regardless of weather
+    print("  Adding Night samples...")
+    for hour in night_hours:
+        for temp in [0, 5, 8, 10, 12, 15, 18, 20]:
+            for rain in [0, 2, 5, 10, 15, 20]:
+                for wind in [5, 10, 15, 20]:
+                    X.append([temp, rain, wind, hour])
+                    y.append(2)
+    
+    X = np.array(X)
+    y = np.array(y)
+    
+    print(f"\n✅ Generated {len(X)} training samples")
+    print(f"  Outdoor (0): {sum(y==0)} samples")
+    print(f"  Indoor (1): {sum(y==1)} samples")
+    print(f"  Night (2): {sum(y==2)} samples")
+    
+    # Export to CSV for review
+    df = pd.DataFrame(X, columns=["temperature", "rain", "wind_speed", "hour"])
+    df["activity_label"] = y
+    df["activity_name"] = df["activity_label"].map({0: "Outdoor", 1: "Indoor", 2: "Night"})
+    df.to_csv("training_data_comprehensive.csv", index=False)
+    print(f"\n✅ Comprehensive training data exported to 'training_data_comprehensive.csv'")
+    
+    # Show some specific samples
+    print("\n🔍 Sample data for moderate values (15°C, 15mm rain, 10km/h wind):")
+    moderate_samples = df[(df['temperature'] == 15) & (df['rain'] == 15) & (df['wind_speed'] == 10)]
+    if len(moderate_samples) > 0:
+        print(moderate_samples[['hour', 'temperature', 'rain', 'wind_speed', 'activity_name']].head(10))
+    else:
+        print("  No samples found with these exact values")
+        print("  Checking for nearby values...")
+        nearby = df[(df['temperature'].between(14, 16)) & (df['rain'].between(14, 16)) & (df['wind_speed'].between(9, 11))]
+        print(nearby[['hour', 'temperature', 'rain', 'wind_speed', 'activity_name']].head(10))
+    
+    return X, y
+
 def train_model():
-    """Train model with CORRECTED daytime activity logic"""
-    print("🔄 Training model with proper daytime logic...")
+    """Train model using comprehensive training data"""
+    print("="*60)
+    print("TRAINING MODEL WITH COMPREHENSIVE DATA")
+    print("="*60)
     
-    # Features: [temperature, rain_mm, wind_speed, hour_of_day]
-    # Labels: 0=Outdoor Day, 1=Indoor Day, 2=Night Activity
+    # Generate comprehensive training data
+    X, y = generate_comprehensive_training_data()
     
-    X = np.array([
-        # ===== OUTDOOR DAY (label 0) - GOOD WEATHER, DAYTIME HOURS 8-18 =====
-        # Morning outdoor (8-11)
-        [20, 0, 5, 8], [22, 0, 4, 9], [21, 0, 6, 10], [19, 0, 8, 11],
-        # Midday outdoor (12-14)
-        [25, 0, 3, 12], [27, 0, 4, 12], [24, 0, 5, 13], [26, 0, 3, 13], [28, 0, 4, 14],
-        # Afternoon outdoor (15-18)
-        [23, 0, 6, 15], [22, 0, 7, 16], [20, 0, 8, 17], [19, 0, 9, 18],
-        
-        # ===== INDOOR DAY (label 1) - BAD WEATHER, DAYTIME HOURS 8-18 =====
-        # Rainy days
-        [15, 5, 15, 8], [14, 8, 18, 9], [13, 6, 20, 10], [12, 10, 22, 11],
-        [15, 4, 16, 12], [14, 7, 19, 12], [13, 9, 21, 13], [12, 5, 18, 14],
-        # Windy/rainy mixed
-        [15, 6, 17, 15], [14, 8, 20, 16], [13, 4, 19, 17], [12, 7, 22, 18],
-        
-        # ===== NIGHT ACTIVITY (label 2) - ANY HOUR 20-5 =====
-        # Evening (19-23)
-        [18, 0, 8, 19], [17, 0, 10, 20], [16, 2, 12, 21], [15, 3, 15, 22],
-        [14, 5, 18, 23],
-        # Late night (0-5)
-        [13, 0, 10, 0], [12, 0, 12, 1], [11, 2, 15, 2],
-        [10, 3, 18, 3], [9, 5, 20, 4], [8, 0, 15, 5],
-    ])
+    # Shuffle the data
+    np.random.seed(42)
+    indices = np.random.permutation(len(X))
+    X = X[indices]
+    y = y[indices]
     
-    # Labels matching the data above
-    y = np.array([
-        # Outdoor day (13 samples)
-        0,0,0,0,  # morning
-        0,0,0,0,0,  # midday
-        0,0,0,0,  # afternoon
-        # Indoor day (12 samples)
-        1,1,1,1,1,1,1,1,1,1,1,1,
-        # Night activity (11 samples)
-        2,2,2,2,2,2,2,2,2,2,2,
-    ])
+    # Scale features
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
     
-    # Train model with fixed random state for reproducibility
-    model = RandomForestClassifier(n_estimators=100, max_depth=4, random_state=42)
-    model.fit(X, y)
+    # Train model
+    print("\n🔄 Training Gradient Boosting model...")
+    model = GradientBoostingClassifier(
+        n_estimators=300,
+        learning_rate=0.1,
+        max_depth=5,
+        random_state=42,
+        subsample=0.8
+    )
+    model.fit(X_scaled, y)
     
-    # Save model
+    # Save model and scaler
     joblib.dump(model, "weather_model.pkl")
+    joblib.dump(scaler, "scaler.pkl")
     
-    # Print feature importance
-    features = ["Temperature", "Rain", "Wind Speed", "Hour"]
-    importances = model.feature_importances_
-    print("📊 Feature importance:")
-    for feat, imp in zip(features, importances):
-        print(f"  {feat}: {imp*100:.1f}%")
+    with open("model_type.txt", "w") as f:
+        f.write("GradientBoosting_Comprehensive")
     
-    print("✅ Model trained and saved successfully!")
-    return model
+    print("\n✅ Model and scaler saved successfully!")
+    
+    # Test specific scenarios
+    print("\n" + "="*60)
+    print("TESTING SPECIFIC SCENARIOS")
+    print("="*60)
+    
+    test_scenarios = [
+        # (temp, rain, wind, hour, description)
+        (15, 0, 10, 10, "15°C, no rain, 10km/h wind at 10am"),
+        (15, 5, 10, 10, "15°C, light rain, 10km/h wind at 10am"),
+        (15, 10, 10, 10, "15°C, moderate rain, 10km/h wind at 10am"),
+        (15, 15, 10, 10, "15°C, heavy rain, 10km/h wind at 10am"),
+        (15, 20, 10, 10, "15°C, very heavy rain, 10km/h wind at 10am"),
+        (20, 0, 10, 14, "20°C, sunny at 2pm"),
+        (20, 15, 10, 14, "20°C, rainy at 2pm"),
+        (5, 0, 10, 14, "5°C, cold at 2pm"),
+        (15, 0, 10, 22, "15°C at 10pm (night)"),
+        (12, 0, 10, 11, "12°C, cool morning"),
+        (18, 8, 15, 15, "18°C, moderate rain, 3pm"),
+    ]
+    
+    for temp, rain, wind, hour, desc in test_scenarios:
+        test_input = scaler.transform([[temp, rain, wind, hour]])
+        pred = model.predict(test_input)[0]
+        proba = model.predict_proba(test_input)[0]
+        confidence = max(proba)
+        pred_name = {0: "OUTDOOR", 1: "INDOOR", 2: "NIGHT"}[pred]
+        
+        # Determine expected
+        if hour >= 20 or hour <= 5:
+            expected = "NIGHT"
+        elif rain >= 8 or wind >= 25 or temp < 8:
+            expected = "INDOOR"
+        else:
+            expected = "OUTDOOR"
+        
+        status = "✓" if pred_name == expected else "⚠️"
+        print(f"\n{desc}:")
+        print(f"  → {pred_name} (conf: {confidence:.1%}) {status}")
+        print(f"    Probabilities - O: {proba[0]:.2f}, I: {proba[1]:.2f}, N: {proba[2]:.2f}")
+    
+    return model, scaler
 
 def load_or_train_model():
     """Load existing model or train if not exists"""
     model_path = "weather_model.pkl"
+    scaler_path = "scaler.pkl"
     
-    if os.path.exists(model_path):
+    if os.path.exists(model_path) and os.path.exists(scaler_path):
         try:
             model = joblib.load(model_path)
-            print("✅ Model loaded from file")
-            return model
+            scaler = joblib.load(scaler_path)
+            print(f"✅ Model loaded from {model_path}")
+            
+            # Check if it's the comprehensive model
+            if os.path.exists("model_type.txt"):
+                with open("model_type.txt", "r") as f:
+                    model_type = f.read().strip()
+                print(f"   Model type: {model_type}")
+            
+            return model, scaler
         except Exception as e:
             print(f"⚠️ Could not load model: {e}")
-            print("🔄 Retraining...")
             return train_model()
     else:
         print("⚠️ No existing model found. Training new model...")
         return train_model()
 
-# Load model at module level
-model = load_or_train_model()
+# Load model and scaler at module level
+model, scaler = load_or_train_model()
 
 def recommend_activity_ml(weather_data):
     """
-    Get activity recommendation based on weather and time
-    Expected keys: temperature, rain, windspeed, hour
+    Pure ML recommendation - no rule-based overrides
     """
-    # Safely extract and convert values
     try:
         temp = float(weather_data["temperature"])
         rain = float(weather_data["rain"])
@@ -100,25 +236,24 @@ def recommend_activity_ml(weather_data):
         hour = float(weather_data["hour"])
     except (KeyError, ValueError, TypeError) as e:
         print(f"⚠️ Error parsing input: {e}")
-        print(f"Received: {weather_data}")
-        # Return safe default
         return "📚 Library or Cafe", 0.5, "Unable to process weather data", 1
     
-    # Validate hour range
-    if hour < 0 or hour > 23:
-        print(f"⚠️ Invalid hour: {hour}, defaulting to 12")
-        hour = 12
+    hour = hour % 24
     
-    # Prepare features and predict
+    # Pure ML prediction
     features = np.array([[temp, rain, wind, hour]])
-    prediction = model.predict(features)[0]
-    probabilities = model.predict_proba(features)[0]
-    confidence = max(probabilities)
+    features_scaled = scaler.transform(features)
+    prediction = model.predict(features_scaled)[0]
     
-    # Map prediction to activity with time-appropriate suggestions
-    if prediction == 0:  # Outdoor day
-        # Time-appropriate outdoor suggestions
-        if 11 <= hour <= 14:  # Lunch time / midday
+    try:
+        probabilities = model.predict_proba(features_scaled)[0]
+        confidence = max(probabilities)
+    except:
+        confidence = 0.85
+    
+    # Map prediction to activity
+    if prediction == 0:  # Outdoor
+        if 11 <= hour <= 14:
             if temp > 22:
                 activity = "🏖️ Beach Picnic Lunch"
                 reason = f"Warm {temp:.1f}°C at {hour:.0f}:00 - perfect for outdoor lunch"
@@ -128,32 +263,32 @@ def recommend_activity_ml(weather_data):
             else:
                 activity = "🥾 Light Hiking or Walk"
                 reason = f"Cool {temp:.1f}°C at {hour:.0f}:00 - good for active outdoor time"
-        elif hour < 11:  # Morning
+        elif hour < 11:
             activity = "🚶‍♂️ Morning Walk or Jogging"
             reason = f"Nice morning weather at {hour:.0f}:00 for exercise"
-        else:  # Afternoon (15-18)
+        else:
             activity = "🌲 Hiking or Outdoor Sports"
-            reason = f"Good afternoon weather at {hour:.0f}:00 for outdoor activities"
+            reason = f"Good weather at {hour:.0f}:00 for outdoor activities"
     
-    elif prediction == 1:  # Indoor day
-        if rain > 5:
+    elif prediction == 1:  # Indoor
+        if rain > 8:
             activity = "🎬 Movie Theater or Museum"
-            reason = f"Heavy rain ({rain:.1f}mm) at {hour:.0f}:00 - best indoors"
+            reason = f"ML detected rain ({rain:.1f}mm) at {hour:.0f}:00 - best indoors"
         elif wind > 25:
             activity = "🛍️ Shopping Mall"
-            reason = f"Very windy ({wind:.1f}km/h) at {hour:.0f}:00 - stay inside"
+            reason = f"ML detected strong wind ({wind:.1f}km/h) at {hour:.0f}:00 - stay inside"
         elif temp < 8:
             activity = "🏋️‍♂️ Indoor Gym"
-            reason = f"Cold {temp:.1f}°C at {hour:.0f}:00 - exercise indoors"
+            reason = f"ML detected cold ({temp:.1f}°C) at {hour:.0f}:00 - exercise indoors"
         else:
             activity = "📚 Library or Cafe"
-            reason = f"Mixed weather at {hour:.0f}:00 - comfortable indoor options"
+            reason = f"ML classified as indoor activity at {hour:.0f}:00"
     
-    else:  # prediction == 2 (Night)
+    else:  # Night
         if hour >= 22 or hour <= 4:
             activity = "🛌 Cozy Night In"
             reason = f"It's {hour:.0f}:00 - late night, perfect for resting"
-        elif hour >= 19:
+        elif hour >= 20:
             activity = "🍽️ Dinner or Movie"
             reason = f"Evening {hour:.0f}:00 - great for indoor dining or entertainment"
         else:
@@ -162,20 +297,13 @@ def recommend_activity_ml(weather_data):
     
     return activity, confidence, reason, prediction
 
-# For local testing
 if __name__ == "__main__":
-    print("\n🧪 Testing model with various scenarios:\n")
+    print("\n" + "="*60)
+    print("COMPREHENSIVE MODEL TRAINING")
+    print("="*60)
+    model, scaler = train_model()
     
-    test_cases = [
-        {"temperature": 22, "rain": 0, "windspeed": 5, "hour": 12},
-        {"temperature": 15, "rain": 8, "windspeed": 15, "hour": 13},
-        {"temperature": 18, "rain": 0, "windspeed": 10, "hour": 21},
-        {"temperature": 8, "rain": 0, "windspeed": 5, "hour": 10},
-        {"temperature": 25, "rain": 0, "windspeed": 3, "hour": 14},
-    ]
-    
-    for weather in test_cases:
-        activity, confidence, reason, pred = recommend_activity_ml(weather)
-        print(f"Hour {weather['hour']:.0f}, {weather['temperature']}°C: {activity}")
-        print(f"  {reason}")
-        print(f"  (Confidence: {confidence:.1%}, Label: {pred})\n")
+    print("\n" + "="*60)
+    print("READY TO RUN STREAMLIT APP")
+    print("="*60)
+    print("\nRun: streamlit run app.py")
