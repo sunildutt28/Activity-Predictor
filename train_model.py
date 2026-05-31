@@ -63,7 +63,7 @@ for feat, imp in zip(features, importances):
     print(f"  - {feat}: {imp*100:.1f}%")
 
 # Save model
-joblib.dump(model, "weather_model.pkl")
+joblib.dump(model, "weather_model_V2.pkl")
 
 # Test predictions
 print("\n🧪 Test predictions at 11 PM (hour 23):")
